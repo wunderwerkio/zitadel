@@ -30,6 +30,7 @@ export const BaseButton = forwardRef<HTMLButtonElement, SignInWithIdentityProvid
     <button
       {...props}
       type="submit"
+      data-ww="idp"
       ref={ref}
       disabled={formStatus.pending}
       className={clsx(

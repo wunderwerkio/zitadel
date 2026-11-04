@@ -100,7 +100,7 @@ export function UsernameForm({
   return (
     <>
       {samlData && <AutoSubmitForm url={samlData.url} fields={samlData.fields} />}
-      <form className="w-full">
+      <form data-ww="loginname" className="w-full">
         <div className="">
           <TextInput
             type="text"

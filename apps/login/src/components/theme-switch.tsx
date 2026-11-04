@@ -61,6 +61,7 @@ export default function ThemeSwitch() {
       <button
         className={`flex h-8 w-8 flex-row items-center justify-center ${toggleRoundness} transition-colors ${getSelectedButtonStyle(theme === "light")}`}
         onClick={() => setTheme("light")}
+        aria-pressed={theme === "light"}
         aria-label="Switch to light mode"
       >
         <SunIcon className="h-5 w-5" />
@@ -68,6 +69,7 @@ export default function ThemeSwitch() {
       <button
         className={`flex h-8 w-8 flex-row items-center justify-center ${toggleRoundness} transition-colors ${getSelectedButtonStyle(theme === "system")}`}
         onClick={() => setTheme("system")}
+        aria-pressed={theme === "system"}
         aria-label="Switch to system mode"
       >
         <ComputerDesktopIcon className="h-4 w-4" />
@@ -75,6 +77,7 @@ export default function ThemeSwitch() {
       <button
         className={`flex h-8 w-8 flex-row items-center justify-center ${toggleRoundness} transition-colors ${getSelectedButtonStyle(theme === "dark")}`}
         onClick={() => setTheme("dark")}
+        aria-pressed={theme === "dark"}
         aria-label="Switch to dark mode"
       >
         <MoonIcon className="h-4 w-4" />

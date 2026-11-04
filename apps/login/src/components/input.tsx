@@ -59,7 +59,11 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     const actualRoundness = roundness || getDefaultInputRoundness();
 
     return (
-      <label className="text-12px text-input-light-label dark:text-input-dark-label relative flex flex-col">
+      <label
+        data-ww="field"
+        data-invalid={!!error}
+        className="text-12px text-input-light-label dark:text-input-dark-label relative flex flex-col"
+      >
         <span className={`mb-1 leading-3 ${error ? "text-warn-light-500 dark:text-warn-dark-500" : ""}`}>
           {label} {required && "*"}
         </span>

@@ -96,10 +96,10 @@ export function DynamicTheme({
             const hasMultipleChildren = childArray.length > 1;
 
             return (
-              <div className="relative mx-auto w-full max-w-[440px] px-4 py-4">
+              <div data-ww="frame" className="relative mx-auto w-full max-w-[440px] px-4 py-4">
                 <Card>
-                  <div className="mx-auto flex flex-col items-center space-y-8">
-                    <div className="relative flex flex-row items-center justify-center">
+                  <div data-ww="stack" className="mx-auto flex flex-col items-center space-y-8">
+                    <div data-ww="logo" className="relative flex flex-row items-center justify-center">
                       {branding && (
                         <Logo
                           lightSrc={branding.lightTheme?.logoUrl}
@@ -113,10 +113,14 @@ export function DynamicTheme({
                     {hasMultipleChildren ? (
                       <>
                         {/* Title and description - center aligned */}
-                        <div className="mb-4 flex w-full flex-col items-center text-center">{titleContent}</div>
+                        <div data-ww="title" className="mb-4 flex w-full flex-col items-center text-center">
+                          {titleContent}
+                        </div>
 
                         {/* Form content - left aligned */}
-                        <div className="w-full">{formContent}</div>
+                        <div data-ww="form" className="w-full">
+                          {formContent}
+                        </div>
                       </>
                     ) : (
                       // Single child - use original behavior

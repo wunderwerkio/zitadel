@@ -1,0 +1,549 @@
+/*
+ * wunderwerk: the "Werkstatt" look (wunderos Storybook, Zitadel/Werkstatt).
+ *
+ * Unlayered on purpose: Tailwind v4 keeps its utilities in @layer, so these
+ * rules win over the stock classes without touching them. Upstream components
+ * only carry `data-ww` hooks; everything visual is here, which keeps merges of
+ * upstream releases small.
+ *
+ * Colours come from the label policy (helpers/colors.ts sets --theme-*), so
+ * Terraform still owns the palette.
+ */
+
+/* ——— Tokens ——— */
+
+:root {
+  --ww-fg: var(--theme-light-text-500, #0e0e0e);
+  --ww-muted-fg: var(--theme-light-text-secondary-500, #0e0e0ec7);
+  --ww-card: var(--theme-light-background-400, #ffffff);
+  --ww-page: color-mix(in oklch, var(--theme-light-background-500, #ffffff), var(--ww-fg) 2.5%);
+  --ww-primary: var(--theme-light-primary-500, #c36e02);
+  --ww-primary-fg: var(--theme-light-primary-contrast-500, #000000);
+  --ww-warn: var(--theme-light-warn-500, #b5271b);
+  --ww-border: color-mix(in oklch, var(--ww-fg) 11%, transparent);
+  --ww-input: color-mix(in oklch, var(--ww-fg) 17%, transparent);
+  --ww-input-bg: transparent;
+  --ww-muted: color-mix(in oklch, var(--ww-fg) 5%, transparent);
+  --ww-ring: color-mix(in oklch, var(--ww-primary) 45%, transparent);
+  --ww-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  --ww-grid: color-mix(in oklch, var(--ww-fg) 7%, transparent);
+  --ww-grid-minor: color-mix(in oklch, var(--ww-fg) 3.5%, transparent);
+  --ww-link: color-mix(in oklch, var(--ww-primary) 80%, var(--ww-fg));
+  --ww-radius: 0.45rem;
+  --ww-control: 2.25rem;
+}
+
+/* Dark: surfaces one clear step apart (page, card, fields), DESIGN.md lifted. */
+.dark {
+  --ww-fg: var(--theme-dark-text-500, #f5f5f5);
+  --ww-muted-fg: var(--theme-dark-text-secondary-500, #f5f5f5c7);
+  --ww-card: var(--theme-dark-background-500, #232323);
+  --ww-page: var(--theme-dark-background-600, #141414);
+  --ww-primary: var(--theme-dark-primary-500, #d28344);
+  --ww-primary-fg: var(--theme-dark-primary-contrast-500, #000000);
+  --ww-warn: var(--theme-dark-warn-500, #f66d67);
+  --ww-border: color-mix(in oklch, var(--ww-fg) 16%, transparent);
+  --ww-input: color-mix(in oklch, var(--ww-fg) 26%, transparent);
+  --ww-input-bg: color-mix(in oklch, var(--ww-fg) 4%, transparent);
+  --ww-muted: color-mix(in oklch, var(--ww-fg) 8%, transparent);
+  --ww-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+  --ww-link: var(--ww-primary);
+}
+
+/* ——— Browser surfaces ——— */
+
+/* !important beats the stock Lato class. A font uploaded in the label policy
+   still wins: ThemeWrapper publishes it as --zitadel-font-family. */
+html {
+  font-family: var(--zitadel-font-family, var(--ww-font)), ui-sans-serif, system-ui, sans-serif !important;
+  accent-color: var(--ww-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: color-mix(in oklch, var(--ww-primary) 32%, transparent);
+}
+
+/* ——— Page and backdrop ——— */
+
+.ww-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--ww-page);
+  color: var(--ww-fg);
+}
+
+[data-ww="backdrop"] {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Grid every 24 px, major rule every 120 px, dissolving before the edges. */
+[data-ww="blueprint"] {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--ww-grid) 1px, transparent 1px) 0 0 / 120px 120px,
+    linear-gradient(90deg, var(--ww-grid) 1px, transparent 1px) 0 0 / 120px 120px,
+    linear-gradient(var(--ww-grid-minor) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--ww-grid-minor) 1px, transparent 1px) 0 0 / 24px 24px;
+  mask-image: radial-gradient(ellipse 70% 75% at 50% 45%, black 30%, transparent 100%);
+}
+
+[data-ww="drawing"] {
+  position: absolute;
+  display: none;
+  background-color: color-mix(in oklch, var(--ww-muted-fg) 55%, transparent);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+/* The drawings' viewBox ratios. */
+[data-drawing="rocket"] {
+  top: 11%;
+  left: 11%;
+  height: 78%;
+  aspect-ratio: 145.02 / 683.31;
+  background-color: color-mix(in oklch, var(--ww-primary) 70%, transparent);
+  animation: ww-rise 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+[data-drawing="tv"] {
+  top: 9%;
+  right: 10%;
+  height: 25%;
+  aspect-ratio: 588.3 / 763.24;
+  rotate: -3deg;
+}
+
+[data-drawing="typewriter"] {
+  right: 6%;
+  bottom: 11%;
+  height: 30%;
+  aspect-ratio: 617.85 / 495.16;
+}
+
+@media (min-width: 1024px) {
+  [data-ww="drawing"] {
+    display: block;
+  }
+}
+
+@keyframes ww-rise {
+  from {
+    opacity: 0;
+    translate: 0 6rem;
+  }
+}
+
+@keyframes ww-enter {
+  from {
+    opacity: 0;
+    translate: 0 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-drawing="rocket"],
+  [data-ww="card"] {
+    animation: none;
+  }
+}
+
+/* ——— Card ——— */
+
+[data-ww="frame"] {
+  max-width: 26rem;
+}
+
+[data-ww="card"] {
+  background: var(--ww-card);
+  border: 0;
+  border-radius: calc(var(--ww-radius) * 1.4);
+  box-shadow:
+    0 0 0 1px var(--ww-border),
+    var(--ww-shadow);
+  padding: 1.5rem 1.25rem;
+  color: var(--ww-fg);
+  animation: ww-enter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Logo top-left, then title, then form: no centred stack, no trailing gap. */
+[data-ww="stack"] {
+  align-items: stretch;
+}
+
+[data-ww="stack"] > * {
+  margin-block: 0 !important;
+}
+
+[data-ww="stack"] > :empty {
+  display: none;
+}
+
+[data-ww="logo"] {
+  justify-content: flex-start;
+  margin-bottom: 1.5rem !important;
+}
+
+[data-ww="logo"] img {
+  width: auto;
+  height: 2.5rem;
+}
+
+[data-ww="title"] {
+  align-items: flex-start;
+  text-align: left;
+  margin-bottom: 1.25rem !important;
+}
+
+[data-ww="title"] > * {
+  align-items: flex-start;
+}
+
+[data-ww="card"] h1 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-align: left;
+}
+
+[data-ww="title"] h1 {
+  margin-bottom: 0.25rem !important;
+}
+
+[data-ww="card"] .ztdl-p {
+  color: var(--ww-muted-fg);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: left;
+}
+
+/* ——— Fields ——— */
+
+[data-ww="field"] {
+  font-size: 0.875rem;
+  color: var(--ww-fg);
+}
+
+[data-ww="field"] > span:first-child {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+[data-ww="field"] input {
+  height: var(--ww-control);
+  margin: 0;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ww-input);
+  border-radius: var(--ww-radius);
+  background: var(--ww-input-bg);
+  color: var(--ww-fg);
+  font-size: 0.875rem;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+[data-ww="field"] input::placeholder {
+  font-style: normal;
+  color: var(--ww-muted-fg);
+}
+
+[data-ww="field"] input:hover {
+  border-color: color-mix(in oklch, var(--ww-fg) 35%, transparent);
+}
+
+[data-ww="field"] input:focus-visible {
+  border-color: var(--ww-primary);
+  box-shadow: 0 0 0 3px var(--ww-ring);
+}
+
+[data-ww="field"][data-invalid="true"] > span:first-child,
+[data-ww="field"][data-invalid="true"] > div {
+  color: var(--ww-warn);
+}
+
+[data-ww="field"][data-invalid="true"] input {
+  border-color: var(--ww-warn);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ww-warn) 20%, transparent);
+}
+
+/* The message row under every field: quiet until invalid. */
+[data-ww="field"] > div {
+  min-height: 1.25rem;
+  height: auto;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+[data-ww="field"] > span:not(:first-child) {
+  background: var(--ww-card);
+  color: var(--ww-muted-fg);
+}
+
+/* ——— Buttons ——— */
+
+[data-ww="button"] {
+  justify-content: center;
+  gap: 0.375rem;
+  height: var(--ww-control);
+  padding: 0 0.875rem;
+  border: 1px solid transparent;
+  border-radius: var(--ww-radius);
+  box-shadow: none;
+  font-size: 0.875rem;
+  line-height: 1;
+  font-weight: 500;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+
+/* Transparent outline: forced-colors mode paints it, it drops box-shadows. */
+[data-ww="button"]:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--ww-ring);
+}
+
+[data-ww="button"][data-variant="Primary"] {
+  background: var(--ww-primary);
+  color: var(--ww-primary-fg);
+}
+
+[data-ww="button"][data-variant="Primary"]:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--ww-primary) 82%, var(--ww-card));
+}
+
+[data-ww="button"][data-variant="Primary"][data-color="Warn"] {
+  background: var(--ww-warn);
+  color: #ffffff;
+}
+
+[data-ww="button"][data-variant="Secondary"] {
+  background: transparent;
+  border-color: var(--ww-border);
+  color: var(--ww-fg);
+}
+
+[data-ww="button"][data-variant="Secondary"]:hover:not(:disabled) {
+  background: var(--ww-muted);
+}
+
+/* Disabled goes neutral: Copper at half opacity reads as brown on dark. */
+[data-ww="button"]:disabled {
+  background: var(--ww-muted);
+  border-color: transparent;
+  color: var(--ww-muted-fg);
+  cursor: not-allowed;
+}
+
+/* Back is a quiet way out, not a second choice: ghost, with an arrow. */
+[data-ww="button"][data-ww-back] {
+  border-color: transparent;
+  color: var(--ww-muted-fg);
+  padding-inline: 0.5rem;
+}
+
+[data-ww="button"][data-ww-back]::before {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  background: currentColor;
+  /* A file, not a data: URI: the login CSP blocks data: images. Lucide arrow-left. */
+  mask: url("./arrow-left.svg") center / contain no-repeat;
+}
+
+/* Back + submit rows: the action spans the card, back sits under it. */
+[data-ww="card"] div:has(> [data-ww-back]):has(> [data-testid="submit-button"]) {
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+[data-ww="card"] div:has(> [data-ww-back]):has(> [data-testid="submit-button"]) > span:empty {
+  display: none;
+}
+
+[data-ww="card"] [data-ww-back] {
+  align-self: flex-start;
+  margin-left: -0.5rem;
+}
+
+[data-ww="card"] [data-testid="submit-button"] {
+  align-self: stretch;
+}
+
+/* The first step has nothing to go back to. */
+[data-ww="card"] form[data-ww="loginname"] [data-ww-back] {
+  display: none;
+}
+
+/* ——— Identity providers ——— */
+
+[data-ww="card"] div:has(> [data-ww="idps"]) {
+  padding: 1.25rem 0 0;
+}
+
+[data-ww="idps"] > * + * {
+  margin-top: 0.5rem !important;
+}
+
+/* "or sign in with" as a rule with a label. */
+[data-ww="or"] {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem !important;
+  color: var(--ww-muted-fg);
+  font-size: 0.875rem;
+}
+
+[data-ww="or"]::before,
+[data-ww="or"]::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--ww-border);
+}
+
+[data-ww="idp"] {
+  justify-content: center;
+  height: var(--ww-control);
+  padding: 0 0.875rem;
+  border: 1px solid var(--ww-input);
+  border-radius: var(--ww-radius);
+  background: var(--ww-input-bg);
+  box-shadow: none;
+  color: var(--ww-fg);
+  font-weight: 500;
+  transition: background-color 150ms;
+}
+
+[data-ww="idp"]:hover {
+  border-color: var(--ww-input);
+  background: var(--ww-muted);
+}
+
+[data-ww="idp"] > div,
+[data-ww="idp"] > div > div {
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
+[data-ww="idp"] div:has(> svg) {
+  margin: 0;
+}
+
+[data-ww="idp"] svg,
+[data-ww="idp"] img {
+  width: 1rem;
+  height: 1rem;
+}
+
+[data-ww="idp"] span {
+  margin-left: 0.5rem;
+}
+
+/* ——— Alerts ——— */
+
+[data-ww="alert"] {
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--ww-border);
+  border-radius: var(--ww-radius);
+  background: var(--ww-card);
+  color: var(--ww-fg);
+}
+
+[data-ww="alert"][data-type="alert"] {
+  color: var(--ww-warn);
+}
+
+[data-ww="alert"] svg {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+/* ——— Account chip ——— */
+
+/* The account the step is for: a full-width muted row, initials in Copper. */
+[data-ww="account"] {
+  width: 100%;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  border: 0;
+  border-radius: var(--ww-radius);
+  background: var(--ww-muted);
+}
+
+[data-ww="account"] > span:nth-child(2) {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* !important: the avatar paints a name-hashed colour inline. */
+[data-ww="account"] > div:first-child > div {
+  border-radius: calc(var(--ww-radius) * 0.8) !important;
+  background-color: var(--ww-primary) !important;
+  color: var(--ww-primary-fg) !important;
+}
+
+[data-ww="account"] a {
+  border-radius: calc(var(--ww-radius) * 0.8);
+  color: var(--ww-muted-fg);
+}
+
+/* ——— Text actions ——— */
+
+/* Inline actions in a form (Reset Password, Register new user): links. */
+[data-ww="card"] form button:not([data-ww]):not([role]):not([type="submit"]) {
+  color: var(--ww-link);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-underline-offset: 4px;
+}
+
+[data-ww="card"] form button:not([data-ww]):not([role]):not([type="submit"]):hover {
+  text-decoration: underline;
+}
+
+/* ——— Footer ——— */
+
+[data-ww="footer"] {
+  justify-content: center;
+  gap: 0.25rem;
+  max-width: 26rem !important;
+  padding-block: 1.25rem;
+  color: var(--ww-muted-fg);
+  font-size: 0.75rem;
+}
+
+[data-ww="footer"] > div,
+[data-ww="footer"] button {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  color: var(--ww-muted-fg) !important;
+}
+
+[data-ww="footer"] button:hover {
+  color: var(--ww-fg) !important;
+}
+
+/* The active light/system/dark choice (aria-pressed, theme-switch.tsx). */
+[data-ww="footer"] button[aria-pressed="true"] {
+  background: var(--ww-muted) !important;
+  color: var(--ww-fg) !important;
+}

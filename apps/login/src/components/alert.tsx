@@ -21,6 +21,8 @@ const neutral = "border-divider-light dark:border-divider-dark bg-black/5 text-g
 export function Alert({ children, type = AlertType.ALERT }: Props) {
   return (
     <div
+      data-ww="alert"
+      data-type={type === AlertType.ALERT ? "alert" : "info"}
       className={clsx("flex scroll-px-40 flex-row items-center justify-center rounded-md border py-2 pr-2", {
         [yellow]: type === AlertType.ALERT,
         [neutral]: type === AlertType.INFO,

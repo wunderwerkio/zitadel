@@ -1,4 +1,6 @@
 import "@/styles/globals.scss";
+// wunderwerk: the Werkstatt look, after the stock styles so it wins.
+import "@/werkstatt/werkstatt.css";
 
 import { BackgroundWrapper } from "@/components/background-wrapper";
 import { LanguageProvider } from "@/components/language-provider";
@@ -9,6 +11,8 @@ import ThemeSwitch from "@/components/theme-switch";
 import { LANGS, getLanguage } from "@/lib/i18n";
 import { getServiceConfig } from "@/lib/service-url";
 import { getAllowedLanguages } from "@/lib/zitadel";
+import { WerkstattBackdrop } from "@/werkstatt/backdrop";
+import { geist } from "@/werkstatt/font";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
@@ -43,7 +47,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html className={`${lato.className}`} suppressHydrationWarning>
+    <html className={`${lato.className} ${geist.variable}`} suppressHydrationWarning>
       <head />
       <body>
         <ThemeProvider>
@@ -51,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Suspense
               fallback={
                 <BackgroundWrapper
-                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
+                  className={`ww-page bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
                 >
                   <div className="relative mx-auto w-full max-w-[440px] py-8">
                     <Skeleton>
@@ -66,11 +70,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             >
               <LanguageProvider>
                 <BackgroundWrapper
-                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
+                  className={`ww-page bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
                 >
+                  <WerkstattBackdrop />
                   <div className="relative mx-auto w-full max-w-[1100px] py-8">
                     <div>{children}</div>
-                    <div className="mx-auto flex max-w-[440px] flex-row items-center justify-end space-x-4 px-4 py-4 md:max-w-full md:px-8">
+                    <div
+                      data-ww="footer"
+                      className="mx-auto flex max-w-[440px] flex-row items-center justify-end space-x-4 px-4 py-4 md:max-w-full md:px-8"
+                    >
                       <LanguageSwitcher languages={languages} />
                       <ThemeSwitch />
                     </div>
