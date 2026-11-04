@@ -1,0 +1,278 @@
+# wunderwerk: keeps custom-login on the newest upstream ZITADEL release
+# (WUNDERWERK.md), the update loop the ZITADEL docs recommend for a fork:
+# merge a release tag into an update branch, test, build, then release.
+#
+#   every 3 h  newest stable release of our major newer than WUNDERWERK_UPSTREAM?
+#     └─ branch upstream/<tag>: merge --no-ff <tag>, bump WUNDERWERK_UPSTREAM
+#        ├─ conflict  → issue "upstream <tag>: merge conflict", run fails
+#        └─ clean     → PR into custom-login ("[security]" when it fixes a
+#                       published advisory) → lint, tests, image build
+#                       ├─ green → merged, image built and pushed (awaited)
+#                       │          → wunderwerk-infra opens the bump PR
+#                       └─ red   → PR stays open, run fails
+#   a new major (v5) only opens an issue: majors need a human.
+#   Anything stuck (conflict, refused push, orphan branch, failed release
+#   build) becomes an issue and a failed run, never a silent skip.
+#
+# Tokens: git pushes with the wunderwerk-ci app when it is installed here with
+# `workflows` write (upstream releases change .github/workflows, which
+# GITHUB_TOKEN may not push); otherwise with GITHUB_TOKEN, and a refused push
+# opens an issue. API calls use GITHUB_TOKEN, which triggers no push or
+# pull_request workflows, so the image build is dispatched and awaited here.
+# Upstream's own workflows are kept disabled.
+name: wunderwerk upstream sync
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ww-upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+env:
+  UPSTREAM: zitadel/zitadel
+  BASE: custom-login
+  IMAGE_WORKFLOW: ww-login-image.yml
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Mint the CI app token
+        id: app
+        continue-on-error: true
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_KEY }}
+          owner: wunderwerkio
+          repositories: zitadel
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.BASE }}
+          fetch-depth: 0
+          filter: blob:none
+          token: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
+
+      - name: Issue helper
+        run: |
+          # ww_issue <title> <body>: opens the issue once (open or closed with that title).
+          cat > "$RUNNER_TEMP/issue.sh" <<'SH'
+          ww_issue() {
+            if [ -z "$(gh issue list --state open --search "in:title \"$1\"" --json number --jq '.[].number')" ]; then
+              gh issue create --title "$1" --body "$2"
+            fi
+          }
+          SH
+
+      # Upstream ships CI, release and docs workflows; none of them may run here.
+      - name: Keep upstream workflows disabled
+        run: |
+          set -euo pipefail
+          gh workflow list --all --json id,path,state \
+            --jq '.[] | select((.path | test("/ww-") | not) and .state == "active") | .id' |
+            while read -r id; do gh workflow disable "$id"; done
+
+      - name: Find the newest upstream release
+        id: find
+        run: |
+          set -euo pipefail
+          current=$(tr -d '[:space:]' < WUNDERWERK_UPSTREAM)
+          major=${current%%.*}
+
+          stable=$(gh api "repos/${UPSTREAM}/releases?per_page=100" \
+            --jq '.[] | select(.prerelease == false and .draft == false) | .tag_name' |
+            grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
+          latest=$(echo "$stable" | grep "^${major}\." | tail -1)
+          newest=$(echo "$stable" | tail -1)
+
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+          echo "newest=${newest}" >> "$GITHUB_OUTPUT"
+
+          update=false
+          if [ "$latest" != "$current" ] && [ "$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)" = "$latest" ]; then
+            update=true
+          fi
+          echo "update=${update}" >> "$GITHUB_OUTPUT"
+          echo "current ${current}, latest ${major} ${latest}, newest ${newest}, update ${update}"
+
+      - name: Announce a new major
+        if: steps.find.outputs.newest != steps.find.outputs.latest
+        run: |
+          set -euo pipefail
+          newest=${{ steps.find.outputs.newest }}
+          title="upstream ${newest}: new major, update by hand"
+          if [ -z "$(gh issue list --state all --search "in:title \"${title}\"" --json number --jq '.[].number')" ]; then
+            gh issue create --title "$title" --body "ZITADEL ${newest} is out; custom-login follows ${{ steps.find.outputs.latest }}. A major needs a manual merge, its migration guide and both images in wunderwerk-infra. https://github.com/${UPSTREAM}/releases/tag/${newest}"
+          fi
+
+      # Published advisories whose fix lies in (current, latest].
+      - name: Security advisories fixed by the update
+        id: advisories
+        if: steps.find.outputs.update == 'true'
+        env:
+          CURRENT: ${{ steps.find.outputs.current }}
+          LATEST: ${{ steps.find.outputs.latest }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${UPSTREAM}/security-advisories?per_page=100&state=published" > advisories.json
+          python3 - <<'PY' > advisories.md
+          import json, os, re
+
+          def ver(s):
+              return tuple(int(x) for x in s.lstrip("v").split("."))
+
+          current, latest = ver(os.environ["CURRENT"]), ver(os.environ["LATEST"])
+          for a in json.load(open("advisories.json")):
+              patched = [ver(v) for vuln in a.get("vulnerabilities") or []
+                         for v in re.findall(r"\d+\.\d+\.\d+", vuln.get("patched_versions") or "")]
+              if any(current < p <= latest for p in patched):
+                  print(f"- [{a['ghsa_id']}]({a['html_url']}) {a['severity']}: {a['summary']}")
+          PY
+          rm advisories.json
+          if [ -s advisories.md ]; then echo "security=true" >> "$GITHUB_OUTPUT"; else echo "security=false" >> "$GITHUB_OUTPUT"; fi
+          cat advisories.md
+
+      - name: Merge the release into an update branch
+        id: merge
+        if: steps.find.outputs.update == 'true'
+        run: |
+          set -euo pipefail
+          latest=${{ steps.find.outputs.latest }}
+          branch="upstream/${latest}"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+
+          . "$RUNNER_TEMP/issue.sh"
+
+          # An open PR or an open issue for this release: it is being handled.
+          if [ -n "$(gh pr list --state open --head "$branch" --json number --jq '.[].number')" ] ||
+            [ -n "$(gh issue list --state open --search "in:title \"upstream ${latest}:\"" --json number --jq '.[].number')" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "${latest} is in progress (open PR or issue)"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          # A branch without an open PR: someone closed it, or PR creation failed.
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            ww_issue "upstream ${latest}: branch without PR" "\`${branch}\` exists but has no open PR into \`${BASE}\`. Reopen or recreate the PR, or delete the branch to let the sync retry."
+            echo "::error::${branch} exists without an open PR"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags "https://github.com/${UPSTREAM}.git" "refs/tags/${latest}:refs/tags/${latest}"
+          git switch -c "$branch"
+
+          if ! git merge --no-ff --no-edit -m "chore: merge upstream ${latest}" "$latest"; then
+            conflicts=$(git diff --name-only --diff-filter=U | sed 's/^/- /')
+            git merge --abort
+            ww_issue "upstream ${latest}: merge conflict" "$(printf 'Merging %s into %s conflicts in:\n\n%s\n\nResolve by hand (WUNDERWERK.md, "Updating"), then close this issue.\n\n%s' \
+              "$latest" "$BASE" "$conflicts" "$(cat advisories.md)")"
+            echo "::error::merge conflict with ${latest}"
+            exit 1
+          fi
+
+          echo "$latest" > WUNDERWERK_UPSTREAM
+          git commit -am "chore: track upstream ${latest}"
+
+          if ! git push origin "$branch" 2> push.log; then
+            cat push.log
+            ww_issue "upstream ${latest}: push refused" "$(printf 'The sync merged %s cleanly but could not push %s:\n\n```\n%s\n```\n\nUsually the release changes .github/workflows and the pushing token lacks `workflows` write (install the wunderwerk-ci app on this repository with that permission). Push the merge by hand (WUNDERWERK.md, "Updating").\n\n%s' \
+              "$latest" "$branch" "$(cat push.log)" "$(cat advisories.md)")"
+            echo "::error::push of ${branch} refused"
+            exit 1
+          fi
+
+      - name: Open the pull request
+        id: pr
+        if: steps.find.outputs.update == 'true' && steps.merge.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          latest=${{ steps.find.outputs.latest }}
+          security=${{ steps.advisories.outputs.security }}
+
+          gh label create upstream --color 0e8a16 --description "Upstream ZITADEL release" 2> /dev/null || true
+          gh label create security --color b60205 --description "Fixes a published advisory" 2> /dev/null || true
+
+          title="chore: merge upstream ${latest}"
+          labels=upstream
+          if [ "$security" = "true" ]; then
+            title="${title} [security]"
+            labels="upstream,security"
+          fi
+
+          body=$(printf 'Merges [ZITADEL %s](https://github.com/%s/releases/tag/%s) (from %s) into `%s`.\n\n' \
+            "$latest" "$UPSTREAM" "$latest" "${{ steps.find.outputs.current }}" "$BASE")
+          if [ "$security" = "true" ]; then
+            body="${body}$(printf '### Security advisories fixed\n\n%s\n\n' "$(cat advisories.md)")"
+          fi
+          body="${body}Merged automatically once lint, unit tests and the image build pass; wunderwerk-infra then opens the image bump."
+
+          url=$(gh pr create --base "$BASE" --head "${{ steps.merge.outputs.branch }}" --title "$title" --body "$body" --label "$labels")
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+      - name: Test and build the update
+        if: steps.pr.outputs.url
+        run: |
+          set -euo pipefail
+          branch=${{ steps.merge.outputs.branch }}
+          since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run "$IMAGE_WORKFLOW" --ref "$branch"
+
+          # The dispatch returns no run id: find the run on that branch.
+          for _ in $(seq 1 30); do
+            run=$(gh run list --workflow "$IMAGE_WORKFLOW" --branch "$branch" --event workflow_dispatch \
+              --json databaseId,createdAt --jq "map(select(.createdAt >= \"${since}\")) | .[0].databaseId // empty")
+            [ -n "$run" ] && break
+            sleep 10
+          done
+          [ -n "$run" ] || { echo "::error::image build run not found"; exit 1; }
+
+          if ! gh run watch "$run" --exit-status --interval 30 > /dev/null; then
+            gh pr comment "${{ steps.pr.outputs.url }}" --body "Lint, tests or the image build failed: $(gh run view "$run" --json url --jq .url). Fix on this branch, then merge."
+            echo "::error::build of ${branch} failed"
+            exit 1
+          fi
+
+      - name: Merge and release the image
+        if: steps.pr.outputs.url
+        run: |
+          set -euo pipefail
+          . "$RUNNER_TEMP/issue.sh"
+          latest=${{ steps.find.outputs.latest }}
+
+          gh pr merge "${{ steps.pr.outputs.url }}" --merge --delete-branch
+          since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run "$IMAGE_WORKFLOW" --ref "$BASE" -f push=true
+
+          # The release must be seen through: custom-login already says ${latest},
+          # so no later sync run would retry a lost image build.
+          run=""
+          for _ in $(seq 1 30); do
+            run=$(gh run list --workflow "$IMAGE_WORKFLOW" --branch "$BASE" --event workflow_dispatch \
+              --json databaseId,createdAt --jq "map(select(.createdAt >= \"${since}\")) | .[0].databaseId // empty")
+            [ -n "$run" ] && break
+            sleep 10
+          done
+
+          if [ -z "$run" ] || ! gh run watch "$run" --exit-status --interval 30 > /dev/null; then
+            ww_issue "upstream ${latest}: image release failed" "The merge of ${latest} into ${BASE} is done, but its image was not pushed. Re-run the **${IMAGE_WORKFLOW}** workflow on ${BASE} with push=true. ${run:+Run: $(gh run view "$run" --json url --jq .url)}"
+            echo "::error::image release of ${latest} failed"
+            exit 1
+          fi

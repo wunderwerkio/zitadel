@@ -1,0 +1,123 @@
+# wunderwerk: builds the Werkstatt login image (WUNDERWERK.md).
+#
+#   pull_request / dispatch  lint, unit tests, build; push only on request
+#   push to custom-login     same, then pushes
+#                            ghcr.io/wunderwerkio/zitadel-login:<upstream>-custom.<run>
+#
+# wunderwerk-infra's zitadel-upgrade workflow picks the newest tag up and opens
+# the bump PR (core and login stay on the same upstream version).
+#
+# Runs started by the upstream sync (GITHUB_TOKEN) arrive as workflow_dispatch:
+# events made with that token trigger no push or pull_request workflows.
+name: wunderwerk login image
+
+run-name: >-
+  wunderwerk login image ${{ github.ref_name }}${{ inputs.push && ' (push)' || '' }}
+
+on:
+  push:
+    branches: [custom-login]
+  pull_request:
+    branches: [custom-login]
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push the image (only from custom-login)."
+        type: boolean
+        default: false
+
+# Never cancel a release build on custom-login: a newer push must not drop it.
+concurrency:
+  group: ww-login-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/custom-login' }}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/wunderwerkio/zitadel-login
+  # Our image must not be built from upstream's Nx Cloud cache.
+  NX_NO_CLOUD: "true"
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  PUSH: ${{ github.ref == 'refs/heads/custom-login' && (github.event_name == 'push' || inputs.push) }}
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install the login and its workspace dependencies
+        run: pnpm install --frozen-lockfile --filter "@zitadel/login..." --filter "@zitadel/zitadel"
+
+      - name: Lint and unit tests
+        run: pnpm nx run-many --nxBail --projects @zitadel/login --targets lint,test-unit
+
+      - name: Build standalone
+        run: pnpm nx run --nxBail @zitadel/login:build
+
+      # <upstream tag>-custom.<run>: the upstream base and our revision, immutable.
+      - name: Tag
+        id: tag
+        run: |
+          set -euo pipefail
+          upstream=$(tr -d '[:space:]' < WUNDERWERK_UPSTREAM)
+          echo "tag=${upstream}-custom.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "upstream=${upstream}" >> "$GITHUB_OUTPUT"
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.description=ZITADEL Login V2 ${{ steps.tag.outputs.upstream }} with the wunderwerk Werkstatt look
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.tag }}
+            type=sha,prefix=sha-,format=short
+
+      # arm64 layers run RUN steps (adduser, chown) under emulation.
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Login to GHCR
+        if: env.PUSH == 'true'
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: apps/login
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUSH == 'true' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=ww-login
+          cache-to: type=gha,mode=max,scope=ww-login
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${IMAGE}:${{ steps.tag.outputs.tag }}"
+            echo "upstream: ${{ steps.tag.outputs.upstream }}, pushed: ${PUSH}"
+          } >> "$GITHUB_STEP_SUMMARY"
