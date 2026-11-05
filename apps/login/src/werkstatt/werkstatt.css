@@ -52,10 +52,10 @@
 
 /* ——— Browser surfaces ——— */
 
-/* !important beats the stock Lato class. A font uploaded in the label policy
-   still wins: ThemeWrapper publishes it as --zitadel-font-family. */
+/* !important beats the stock Lato class and the label policy's uploaded
+   font (one file, one weight): the image ships Geist in every weight used. */
 html {
-  font-family: var(--zitadel-font-family, var(--ww-font)), ui-sans-serif, system-ui, sans-serif !important;
+  font-family: var(--ww-font), ui-sans-serif, system-ui, sans-serif !important;
   accent-color: var(--ww-primary);
   -webkit-font-smoothing: antialiased;
 }
@@ -104,6 +104,7 @@ html {
 
 /* The drawings' viewBox ratios. */
 [data-drawing="rocket"] {
+  mask-image: url("./drawings/rocket.svg");
   top: 11%;
   left: 11%;
   height: 78%;
@@ -113,6 +114,7 @@ html {
 }
 
 [data-drawing="tv"] {
+  mask-image: url("./drawings/tv.svg");
   top: 9%;
   right: 10%;
   height: 25%;
@@ -121,6 +123,7 @@ html {
 }
 
 [data-drawing="typewriter"] {
+  mask-image: url("./drawings/typewriter.svg");
   right: 6%;
   bottom: 11%;
   height: 30%;

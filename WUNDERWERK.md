@@ -23,15 +23,15 @@ hooks, so merges of new releases stay small.
 
 | Path | |
 | --- | --- |
-| `apps/login/src/werkstatt/` | `werkstatt.css` (the whole look), backdrop, Geist font (OFL) |
-| `apps/login/public/werkstatt/` | wunderwerk-ci line drawings |
+| `apps/login/src/werkstatt/` | `werkstatt.css` (the whole look), backdrop, Geist font (OFL), wunderwerk-ci line drawings |
 | `apps/login/src/app/(login)/layout.tsx` | imports, font variable, backdrop, footer hook |
 | `apps/login/src/components/*.tsx` | `data-ww` attributes, `aria-pressed` on the theme switch |
 | `apps/login/src/werkstatt/hooks.test.tsx` | pins the hooks, so an upstream markup change fails the build |
 | `.github/workflows/ww-*.yml` | image build, upstream sync |
 | `WUNDERWERK_UPSTREAM` | the upstream release `custom-login` is on |
 
-Colours, logo and texts stay in the ZITADEL label policy and hosted-login
+Assets are imported through CSS, never `public/`: the standalone image does
+not serve `public/` under the base path. Colours, logo and texts stay in the ZITADEL label policy and hosted-login
 translations (wunderwerk-infra `terraform/cloud/zitadel/branding.tf`).
 
 Repository settings this relies on: default branch `custom-login` (scheduled
